@@ -73,10 +73,18 @@ links: 連結
 link: 連結
 friends: 友情連結
 friend: 友情連結
-timeline: 時間軸
+# timeline: 時間軸
 shuoshuo: 說說
 changelog: 日誌
 bookmarks: 書籤
+
+timeline: 時間線
+languages: 語言
+treasure-box: 百寶箱
+blogs: 部落格
+personal: 個人
+gallery: 相冊
+tech-stack: 技術棧
 
 # ----------------------------------------
 # 網站統計

@@ -72,9 +72,17 @@ about: について
 links: リンク
 friends: フレンドシップリンク
 friend: フレンドシップリンク
-タイムライン: 時間軸
+# timeline: 時間軸
 shuoshuo: 話す
 bookmarks: ブックマーク
+
+timeline: 時間線
+languages: 言語
+treasure-box: 宝箱
+blogs: ブログ
+personal: 個人
+gallery: アルバム
+tech-stack: 技術スタック
 
 # ----------------------------------------
 # 网站统计

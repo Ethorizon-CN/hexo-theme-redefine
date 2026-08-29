@@ -73,6 +73,8 @@ export const config = {
 };
 
 export default function initTyped(id) {
+  destroyInstance(id);
+
   const currentToken = (initTokens.get(id) || 0) + 1;
   initTokens.set(id, currentToken);
 
