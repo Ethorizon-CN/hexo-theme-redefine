@@ -75,7 +75,7 @@ export const updateHomeBannerBlur = (ctx) => {
     return;
   }
 
-  if (theme.home_banner.style === "fixed" && location.pathname === config.root) {
+  if (theme.home_banner.style === "fixed" && document.getElementById("subtitle")) {
     const scrollY = window.scrollY || window.pageYOffset;
     const blurValue = scrollY >= ctx.triggerViewHeight ? 15 : 0;
 

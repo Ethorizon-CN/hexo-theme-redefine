@@ -10,7 +10,7 @@ export const updateAutoHideTools = () => {
   for (let i = 0; i < toolList.length; i++) {
     const tools = toolList[i];
     if (y <= 100) {
-      if (location.pathname === config.root) {
+      if (document.getElementById("subtitle")) {
         tools.classList.add("hide");
         if (aplayer !== null) {
           aplayer.classList.add("hide");
