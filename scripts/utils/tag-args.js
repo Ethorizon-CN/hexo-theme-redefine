@@ -1,6 +1,7 @@
 'use strict';
 
 const ARG_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+const NAMED_ARG_REGEX = /^([A-Za-z_][A-Za-z0-9_-]*)\s*=/;
 
 function splitRawArgs(rawArgs) {
   const tokens = [];
@@ -119,10 +120,109 @@ function splitClassNames(value) {
     .filter(Boolean);
 }
 
+// Hexo splits tag arguments on whitespace and drops the surrounding quotes
+// before a tag handler runs, so `title="Hello World"` reaches the handler as
+// `title=Hello World`. `parseTagArgs` then keeps only `Hello` and pushes
+// `World` into the positional arguments. Scanning the raw argument string for
+// `key=` positions lets callers recover such values in full.
+function findNamedArgs(rawArgs) {
+  const input = String(rawArgs ?? '');
+  const namedArgs = [];
+  let quote = '';
+  let escaped = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (index > 0 && !/\s/.test(input[index - 1])) {
+      continue;
+    }
+
+    const match = input.slice(index).match(NAMED_ARG_REGEX);
+    if (!match) {
+      continue;
+    }
+
+    namedArgs.push({
+      key: match[1],
+      index,
+      valueStart: index + match[0].length,
+    });
+    index += match[0].length - 1;
+  }
+
+  return namedArgs;
+}
+
+function normalizeNamedValue(value) {
+  const normalized = String(value ?? '').trim();
+
+  if (normalized.length < 2) {
+    return normalized;
+  }
+
+  const quote = normalized[0];
+  if ((quote !== '"' && quote !== "'")
+    || normalized[normalized.length - 1] !== quote) {
+    return normalized;
+  }
+
+  return normalized.slice(1, -1).replace(/\\(.)/g, '$1');
+}
+
+function getRawNamedValue(rawArgs, namedArgs, key, knownKeys) {
+  const input = String(rawArgs ?? '');
+  const candidates = Array.isArray(namedArgs) ? namedArgs : [];
+  const current = candidates.filter((namedArg) => namedArg.key === key).pop();
+
+  if (!current) {
+    return '';
+  }
+
+  // A value ends where the next known named argument starts, so values that
+  // contain spaces survive while trailing `key=value` text stays separate.
+  const next = candidates.find((namedArg) => namedArg.index > current.index
+    && (!knownKeys || knownKeys.has(namedArg.key)));
+  const end = next ? next.index : input.length;
+
+  return normalizeNamedValue(input.slice(current.valueStart, end));
+}
+
+function getQuotedNamedValue(rawArgs, namedArgs, named, key, knownKeys) {
+  return getRawNamedValue(rawArgs, namedArgs, key, knownKeys)
+    || getNamedString(named, key, '').trim();
+}
+
 module.exports = {
   parseTagArgs,
   hasNamedArgs,
   getNamedString,
   getNamedNumber,
   splitClassNames,
+  findNamedArgs,
+  normalizeNamedValue,
+  getRawNamedValue,
+  getQuotedNamedValue,
 };

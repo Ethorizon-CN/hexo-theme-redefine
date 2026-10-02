@@ -3,11 +3,14 @@
 const {
   parseTagArgs,
   hasNamedArgs,
-  getNamedString,
   splitClassNames,
+  findNamedArgs,
+  getQuotedNamedValue,
 } = require('../utils/tag-args');
 const { html } = require('../utils/html');
 const { renderMarkdownTagSafe } = require('../utils/markdown-swig');
+
+const FOLDING_NAMED_KEYS = new Set(['title', 'class', 'classes', 'style', 'open']);
 
 function normalizeOpenValue(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -29,23 +32,27 @@ function normalizeOpenValue(value) {
 
 function parseNamedArgs(rawArgs) {
   const parsedArgs = parseTagArgs(rawArgs);
-  const supportsNamed = ['title', 'class', 'classes', 'style', 'open']
-    .some((key) => parsedArgs.named[key] != null);
+  const supportsNamed = Object.keys(parsedArgs.named)
+    .some((key) => FOLDING_NAMED_KEYS.has(key));
 
   if (!hasNamedArgs(parsedArgs) || !supportsNamed) {
     return null;
   }
 
+  const rawNamedArgs = findNamedArgs(rawArgs);
+  const getNamedValue = (key) =>
+    getQuotedNamedValue(rawArgs, rawNamedArgs, parsedArgs.named, key, FOLDING_NAMED_KEYS);
+
   const classNames = [
-    ...splitClassNames(getNamedString(parsedArgs.named, 'class', '')),
-    ...splitClassNames(getNamedString(parsedArgs.named, 'classes', '')),
-    ...splitClassNames(getNamedString(parsedArgs.named, 'style', '')),
+    ...splitClassNames(getNamedValue('class')),
+    ...splitClassNames(getNamedValue('classes')),
+    ...splitClassNames(getNamedValue('style')),
   ];
 
   return {
-    title: getNamedString(parsedArgs.named, 'title', '').trim() || parsedArgs.positional.join(' ').trim(),
+    title: getNamedValue('title') || parsedArgs.positional.join(' ').trim(),
     className: classNames.join(' ').trim(),
-    open: normalizeOpenValue(getNamedString(parsedArgs.named, 'open', '')),
+    open: normalizeOpenValue(getNamedValue('open')),
   };
 }
 

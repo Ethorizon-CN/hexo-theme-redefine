@@ -3,8 +3,9 @@
 const {
   parseTagArgs,
   hasNamedArgs,
-  getNamedString,
   splitClassNames,
+  findNamedArgs,
+  getQuotedNamedValue,
 } = require("../utils/tag-args");
 const { html } = require("../utils/html");
 const { warnOnce } = require("../deprecations/warn");
@@ -42,98 +43,9 @@ const cn = (...groups) =>
     .filter((value) => value && value.length > 0)
     .join(" ");
 
-// Hexo passes tag arguments as whitespace-split tokens and may remove the
-// quotes before the tag handler receives them. Recover named values from the
-// joined argument string so spaces in values such as title="hello world" are
-// not mistaken for separate positional arguments.
-const findNamedArgs = (rawArgs) => {
-  const namedArgs = [];
-  let quote = "";
-  let escaped = false;
-
-  for (let index = 0; index < rawArgs.length; index += 1) {
-    const char = rawArgs[index];
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-
-      if (char === quote) {
-        quote = "";
-      }
-      continue;
-    }
-
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (index > 0 && !/\s/.test(rawArgs[index - 1])) {
-      continue;
-    }
-
-    const match = rawArgs
-      .slice(index)
-      .match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=/);
-    if (!match) {
-      continue;
-    }
-
-    namedArgs.push({
-      key: match[1],
-      index,
-      valueStart: index + match[0].length,
-    });
-    index += match[0].length - 1;
-  }
-
-  return namedArgs;
-};
-
-const normalizeNamedValue = (value) => {
-  const normalized = value.trim();
-  if (normalized.length < 2) {
-    return normalized;
-  }
-
-  const quote = normalized[0];
-  if ((quote !== "\"" && quote !== "'")
-    || normalized[normalized.length - 1] !== quote) {
-    return normalized;
-  }
-
-  return normalized.slice(1, -1).replace(/\\(.)/g, "$1");
-};
-
-const getRawNamedValue = (rawArgs, namedArgs, key) => {
-  const current = namedArgs
-    .filter((namedArg) => namedArg.key === key)
-    .pop();
-
-  if (!current) {
-    return "";
-  }
-
-  const next = namedArgs.find((namedArg) =>
-    namedArg.index > current.index
-    && CALLOUT_NAMED_KEYS.has(namedArg.key));
-  const end = next ? next.index : rawArgs.length;
-
-  return normalizeNamedValue(rawArgs.slice(current.valueStart, end));
-};
-
-const getCalloutNamedValue = (rawArgs, rawNamedArgs, named, key) =>
-  getRawNamedValue(rawArgs, rawNamedArgs, key)
-    || getNamedString(named, key, "").trim();
-
+// Named values are recovered through the shared quote-aware helpers in
+// utils/tag-args so that values containing spaces survive Hexo's argument
+// splitting.
 const tokenize = (value) =>
   value
     .split(/\s+/)
@@ -250,7 +162,7 @@ const parseNamedArgs = (rawArgs) => {
 
   const rawNamedArgs = findNamedArgs(rawArgs);
   const getNamedValue = (key) =>
-    getCalloutNamedValue(rawArgs, rawNamedArgs, parsedArgs.named, key);
+    getQuotedNamedValue(rawArgs, rawNamedArgs, parsedArgs.named, key, CALLOUT_NAMED_KEYS);
   const positionalParsed = parseSimpleArgs(parsedArgs.positional);
   const namedType = getNamedValue("type");
   const namedIcon = getNamedValue("icon");
