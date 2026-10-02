@@ -33,7 +33,7 @@ const updateScrollPercent = (ctx, percent) => {
     const showButton = percent !== 0 && percent !== undefined;
 
     ctx.backToTopButton_dom.classList.toggle("show", showButton);
-    percentDom.innerHTML = percent.toFixed(0);
+    percentDom.innerHTML = percent.toFixed(0) + "%";
   }
 };
 
