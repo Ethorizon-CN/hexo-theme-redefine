@@ -27,11 +27,112 @@ const FONT_AWESOME_STYLE_TOKENS = new Set([
   "fa-sharp-thin",
 ]);
 
+const CALLOUT_NAMED_KEYS = new Set([
+  "type",
+  "title",
+  "icon",
+  "class",
+  "classes",
+  "variant",
+]);
+
 const cn = (...groups) =>
   groups
     .flat()
     .filter((value) => value && value.length > 0)
     .join(" ");
+
+// Hexo passes tag arguments as whitespace-split tokens and may remove the
+// quotes before the tag handler receives them. Recover named values from the
+// joined argument string so spaces in values such as title="hello world" are
+// not mistaken for separate positional arguments.
+const findNamedArgs = (rawArgs) => {
+  const namedArgs = [];
+  let quote = "";
+  let escaped = false;
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const char = rawArgs[index];
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (index > 0 && !/\s/.test(rawArgs[index - 1])) {
+      continue;
+    }
+
+    const match = rawArgs
+      .slice(index)
+      .match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=/);
+    if (!match) {
+      continue;
+    }
+
+    namedArgs.push({
+      key: match[1],
+      index,
+      valueStart: index + match[0].length,
+    });
+    index += match[0].length - 1;
+  }
+
+  return namedArgs;
+};
+
+const normalizeNamedValue = (value) => {
+  const normalized = value.trim();
+  if (normalized.length < 2) {
+    return normalized;
+  }
+
+  const quote = normalized[0];
+  if ((quote !== "\"" && quote !== "'")
+    || normalized[normalized.length - 1] !== quote) {
+    return normalized;
+  }
+
+  return normalized.slice(1, -1).replace(/\\(.)/g, "$1");
+};
+
+const getRawNamedValue = (rawArgs, namedArgs, key) => {
+  const current = namedArgs
+    .filter((namedArg) => namedArg.key === key)
+    .pop();
+
+  if (!current) {
+    return "";
+  }
+
+  const next = namedArgs.find((namedArg) =>
+    namedArg.index > current.index
+    && CALLOUT_NAMED_KEYS.has(namedArg.key));
+  const end = next ? next.index : rawArgs.length;
+
+  return normalizeNamedValue(rawArgs.slice(current.valueStart, end));
+};
+
+const getCalloutNamedValue = (rawArgs, rawNamedArgs, named, key) =>
+  getRawNamedValue(rawArgs, rawNamedArgs, key)
+    || getNamedString(named, key, "").trim();
 
 const tokenize = (value) =>
   value
@@ -140,20 +241,23 @@ const parseDelimitedArgs = (rawArgs, defaultTitle) => {
 
 const parseNamedArgs = (rawArgs) => {
   const parsedArgs = parseTagArgs(rawArgs);
-  const supportsNamed = ["type", "title", "icon", "class", "classes", "variant"]
-    .some((key) => parsedArgs.named[key] != null);
+  const supportsNamed = Object.keys(parsedArgs.named)
+    .some((key) => CALLOUT_NAMED_KEYS.has(key));
 
   if (!hasNamedArgs(parsedArgs) || !supportsNamed) {
     return null;
   }
 
+  const rawNamedArgs = findNamedArgs(rawArgs);
+  const getNamedValue = (key) =>
+    getCalloutNamedValue(rawArgs, rawNamedArgs, parsedArgs.named, key);
   const positionalParsed = parseSimpleArgs(parsedArgs.positional);
-  const namedType = getNamedString(parsedArgs.named, "type", "").trim();
-  const namedIcon = getNamedString(parsedArgs.named, "icon", "").trim();
-  const namedTitle = getNamedString(parsedArgs.named, "title", "").trim();
-  const variant = getNamedString(parsedArgs.named, "variant", "").trim();
-  const classNames = splitClassNames(getNamedString(parsedArgs.named, "class", ""));
-  const classesAlias = splitClassNames(getNamedString(parsedArgs.named, "classes", ""));
+  const namedType = getNamedValue("type");
+  const namedIcon = getNamedValue("icon");
+  const namedTitle = getNamedValue("title");
+  const variant = getNamedValue("variant");
+  const classNames = splitClassNames(getNamedValue("class"));
+  const classesAlias = splitClassNames(getNamedValue("classes"));
 
   const normalizedVariant = variant === "titled" || namedTitle
     ? "titled"
